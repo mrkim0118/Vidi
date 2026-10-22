@@ -1,0 +1,17 @@
+# Generated and local files
+.vs/
+.idea/
+.vscode/
+**/bin/
+**/obj/
+**/artifacts/
+**/publish/
+*.suo
+*.user
+*.csproj.user
+.env
+.env.*
+*.log
+
+# Packaged release and build output
+**/installer/
