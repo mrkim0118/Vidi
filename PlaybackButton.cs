@@ -17,8 +17,8 @@ public sealed class PlaybackButton : Button
         FlatAppearance.BorderSize = 0;
         BackColor = Color.FromArgb(46, 46, 46);
         ForeColor = Color.White;
-        Width = 48;
-        Height = 32;
+        Width = 44;
+        Height = 44;
         Margin = new Padding(0, 0, 8, 0);
         UseVisualStyleBackColor = false;
         Cursor = Cursors.Hand;
@@ -45,37 +45,47 @@ public sealed class PlaybackButton : Button
         var graphics = pevent.Graphics;
         graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-        var fill = Enabled ? Color.White : Color.FromArgb(120, 120, 120);
-        var border = Enabled ? Color.White : Color.FromArgb(120, 120, 120);
-        var background = ClientRectangle;
-        background.Width -= 1;
-        background.Height -= 1;
+        // White disc with a dark glyph; slightly dimmed while hovered.
+        var hovered = ClientRectangle.Contains(PointToClient(MousePosition));
+        var disc = Enabled ? (hovered ? Color.FromArgb(225, 225, 225) : Color.FromArgb(242, 242, 242)) : Color.FromArgb(110, 110, 110);
+        var glyph = Color.FromArgb(20, 20, 20);
+        var circle = new Rectangle(0, 0, Math.Min(Width, Height) - 1, Math.Min(Width, Height) - 1);
+        circle.Offset((Width - circle.Width) / 2, (Height - circle.Height) / 2);
 
         using var backgroundBrush = new SolidBrush(BackColor);
-        using var borderPen = new Pen(border);
-        using var brush = new SolidBrush(fill);
+        using var discBrush = new SolidBrush(disc);
+        using var brush = new SolidBrush(glyph);
 
         graphics.FillRectangle(backgroundBrush, ClientRectangle);
-        graphics.DrawRectangle(borderPen, background);
+        graphics.FillEllipse(discBrush, circle);
 
+        var cx = circle.Left + circle.Width / 2;
+        var cy = circle.Top + circle.Height / 2;
         if (_isPlaying)
         {
-            var barWidth = 5;
-            var barHeight = 15;
-            var y = (Height - barHeight) / 2;
-            var x = Width / 2 - 7;
-            graphics.FillRectangle(brush, x, y, barWidth, barHeight);
-            graphics.FillRectangle(brush, x + 9, y, barWidth, barHeight);
+            graphics.FillRectangle(brush, cx - 6, cy - 7, 4, 14);
+            graphics.FillRectangle(brush, cx + 2, cy - 7, 4, 14);
         }
         else
         {
-            var points = new[]
+            graphics.FillPolygon(brush, new[]
             {
-                new Point(Width / 2 - 5, Height / 2 - 9),
-                new Point(Width / 2 - 5, Height / 2 + 9),
-                new Point(Width / 2 + 10, Height / 2)
-            };
-            graphics.FillPolygon(brush, points);
+                new Point(cx - 4, cy - 8),
+                new Point(cx - 4, cy + 8),
+                new Point(cx + 9, cy)
+            });
         }
+    }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e);
+        Invalidate();
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        Invalidate();
     }
 }

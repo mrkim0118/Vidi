@@ -13,6 +13,10 @@ public partial class Form1 : Form
     private const string AppTitle = "Tech Archive Video Player";
     private const string UpdateUrl = "https://tech.trendarchive.io/Utility/VideoPlayer/";
     private static readonly TimeSpan ExternalOpenBurstWindow = TimeSpan.FromSeconds(2);
+    private static readonly Color PanelColor = Color.FromArgb(22, 22, 22);
+    private static readonly Color IconColor = Color.FromArgb(214, 214, 214);
+    private static readonly Color AccentColor = Color.FromArgb(255, 154, 60);
+    private static readonly Font IconFont = CreateIconFont();
     private static readonly string AppVersion = typeof(Form1).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
 
     private readonly AppUpdateService _appUpdateService = new(UpdateUrl);
@@ -20,16 +24,19 @@ public partial class Form1 : Form
     private readonly VideoView _videoView;
     private readonly Panel _bottomPanel;
     private readonly Button _openButton;
+    private readonly Button _playlistButton;
     private readonly PlaybackButton _playPauseButton;
     private readonly Button _skipBackButton;
     private readonly Button _skipForwardButton;
     private readonly Button _captureButton;
-    private readonly Button _donateButton;
-    private readonly Label _volumeLabel;
+    private readonly Button _fullScreenButton;
+    private readonly Label _volumeIcon;
     private readonly PlayerSlider _volumeBar;
-    private readonly Label _volumeValueLabel;
     private readonly PlayerSlider _seekBar;
     private readonly Label _timeLabel;
+    private readonly Label _durationLabel;
+    private readonly EmptyStateHint _emptyHint;
+    private readonly ToolTip _toolTip = new();
     private readonly ContextMenuStrip _videoMenu;
     private readonly ToolStripMenuItem _fullScreenMenuItem;
     private readonly ToolStripMenuItem _windowModeMenuItem;
@@ -115,24 +122,40 @@ public partial class Form1 : Form
         _bottomPanel = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 78,
-            Padding = new Padding(10, 8, 10, 8),
-            BackColor = Color.FromArgb(22, 22, 22)
+            Height = 96,
+            Padding = new Padding(16, 6, 16, 8),
+            BackColor = PanelColor
         };
 
-        _openButton = CreateButton("Open", 72);
-        _playPauseButton = new PlaybackButton();
-        _skipBackButton = CreateButton("<<", 48);
-        _skipForwardButton = CreateButton(">>", 48);
-        _captureButton = CreateButton("Capture", 80);
-        _donateButton = CreateDonateButton();
+        // Segoe MDL2 / Fluent Icons code points.
+        _openButton = CreateIconButton("");
+        _playlistButton = CreateIconButton("");
+        _playPauseButton = new PlaybackButton { BackColor = PanelColor, Margin = new Padding(8, 2, 8, 0) };
+        _skipBackButton = CreateIconButton("");
+        _skipForwardButton = CreateIconButton("");
+        _captureButton = CreateIconButton("");
+        _fullScreenButton = CreateIconButton("");
 
-        _volumeLabel = CreateLabel("Vol", ContentAlignment.MiddleRight);
+        _volumeIcon = new Label
+        {
+            Text = "",
+            Font = IconFont,
+            ForeColor = IconColor,
+            AutoSize = false,
+            Size = new Size(32, 36),
+            Margin = new Padding(4, 6, 0, 0),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
         _volumeBar = CreateSlider(0, 100, _desiredVolume);
-        _volumeValueLabel = CreateLabel($"{_desiredVolume}%", ContentAlignment.MiddleRight);
+        _volumeBar.Dock = DockStyle.None;
+        _volumeBar.Size = new Size(84, 26);
+        _volumeBar.Margin = new Padding(2, 11, 8, 0);
+        _volumeBar.ProgressColor = IconColor;
         _seekBar = CreateSlider(0, SeekMaximum, 0);
         _seekBar.Enabled = false;
-        _timeLabel = CreateLabel("00:00 / 00:00", ContentAlignment.MiddleRight);
+        _timeLabel = CreateLabel("00:00", ContentAlignment.MiddleLeft);
+        _durationLabel = CreateLabel("00:00", ContentAlignment.MiddleRight);
+        _emptyHint = new EmptyStateHint(IconFont.FontFamily);
 
         _fullScreenMenuItem = new ToolStripMenuItem("Fullscreen");
         _windowModeMenuItem = new ToolStripMenuItem("Window mode");
@@ -209,6 +232,21 @@ public partial class Form1 : Form
         };
     }
 
+    // Release VLC while the video window still exists; doing it in Dispose (after the HWND is gone) crashes with an access violation.
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        _uiTimer.Stop();
+        var player = _mediaPlayer;
+        var libVlc = _libVlc;
+        _mediaPlayer = null;
+        _libVlc = null;
+        _videoView.MediaPlayer = null;
+        player?.Stop();
+        player?.Dispose();
+        libVlc?.Dispose();
+        base.OnFormClosed(e);
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -261,40 +299,31 @@ public partial class Form1 : Form
         return base.ProcessCmdKey(ref msg, keyData);
     }
 
-    private static Button CreateButton(string text, int width)
+    // Fluent Icons on Windows 11; MDL2 Assets (same code points) on Windows 10.
+    private static Font CreateIconFont()
     {
-        return new Button
-        {
-            Text = text,
-            Width = width,
-            Height = 32,
-            FlatStyle = FlatStyle.Flat,
-            ForeColor = Color.White,
-            BackColor = Color.FromArgb(46, 46, 46),
-            Margin = new Padding(0, 0, 8, 0),
-            UseVisualStyleBackColor = false
-        };
+        using var probe = new Font("Segoe Fluent Icons", 14f);
+        return new Font(probe.Name == "Segoe Fluent Icons" ? "Segoe Fluent Icons" : "Segoe MDL2 Assets", 14f);
     }
 
-    private static Button CreateDonateButton()
+    private static Button CreateIconButton(string glyph)
     {
-        return new Button
+        var button = new Button
         {
-            Text = "Donate",
-            Width = 76,
-            Height = 32,
-            Dock = DockStyle.Right,
+            Text = glyph,
+            Font = IconFont,
+            Size = new Size(40, 36),
             FlatStyle = FlatStyle.Flat,
-            FlatAppearance =
-            {
-                BorderColor = Color.White,
-                BorderSize = 1
-            },
-            ForeColor = Color.Black,
-            BackColor = Color.FromArgb(255, 150, 46),
-            Margin = new Padding(0, 0, 0, 0),
-            UseVisualStyleBackColor = false
+            ForeColor = IconColor,
+            BackColor = PanelColor,
+            Margin = new Padding(2, 6, 2, 0),
+            UseVisualStyleBackColor = false,
+            Cursor = Cursors.Hand
         };
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(42, 42, 42);
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(56, 56, 56);
+        return button;
     }
 
     private static Label CreateLabel(string text, ContentAlignment alignment)
@@ -303,7 +332,7 @@ public partial class Form1 : Form
         {
             Text = text,
             AutoSize = false,
-            ForeColor = Color.FromArgb(210, 210, 210),
+            ForeColor = Color.FromArgb(168, 168, 168),
             TextAlign = alignment,
             Dock = DockStyle.Fill
         };
@@ -318,9 +347,24 @@ public partial class Form1 : Form
             Value = value,
             Height = 26,
             Dock = DockStyle.Fill,
-            ProgressColor = Color.FromArgb(133, 199, 255),
+            BackColor = PanelColor,
+            ProgressColor = AccentColor,
             TrackColor = Color.FromArgb(58, 58, 58)
         };
+    }
+
+    private static FlowLayoutPanel CreateButtonGroup(FlowDirection direction, params Control[] controls)
+    {
+        var group = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = direction,
+            WrapContents = false,
+            Margin = Padding.Empty,
+            BackColor = PanelColor
+        };
+        group.Controls.AddRange(controls);
+        return group;
     }
 
     private void BuildLayout()
@@ -338,44 +382,44 @@ public partial class Form1 : Form
         _videoView.AllowDrop = true;
         _bottomPanel.AllowDrop = true;
 
+        // Row 0: time | seek bar | duration. Row 1: left group | centered transport | right group.
         var controlsRow = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 10,
+            ColumnCount = 5,
             RowCount = 2,
-            BackColor = Color.Transparent
+            BackColor = PanelColor
         };
 
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 56));
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 56));
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 56));
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88));
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 44));
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
-        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 148));
-        controlsRow.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        controlsRow.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        controlsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+        controlsRow.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        controlsRow.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
 
-        controlsRow.Controls.Add(_openButton, 0, 0);
-        controlsRow.Controls.Add(_playPauseButton, 1, 0);
-        controlsRow.Controls.Add(_skipBackButton, 2, 0);
-        controlsRow.Controls.Add(_skipForwardButton, 3, 0);
-        controlsRow.Controls.Add(_captureButton, 4, 0);
-        controlsRow.Controls.Add(_volumeLabel, 6, 0);
-        controlsRow.Controls.Add(_volumeBar, 7, 0);
-        controlsRow.Controls.Add(_volumeValueLabel, 8, 0);
-        controlsRow.Controls.Add(_donateButton, 9, 0);
-        controlsRow.Controls.Add(_seekBar, 0, 1);
-        controlsRow.Controls.Add(_timeLabel, 9, 1);
-        controlsRow.SetColumnSpan(_seekBar, 9);
+        controlsRow.Controls.Add(_timeLabel, 0, 0);
+        controlsRow.Controls.Add(_seekBar, 1, 0);
+        controlsRow.SetColumnSpan(_seekBar, 3);
+        controlsRow.Controls.Add(_durationLabel, 4, 0);
+
+        var leftGroup = CreateButtonGroup(FlowDirection.LeftToRight, _openButton, _playlistButton);
+        var centerGroup = CreateButtonGroup(FlowDirection.LeftToRight, _skipBackButton, _playPauseButton, _skipForwardButton);
+        // Right-to-left so the group hugs the right edge; controls are listed right-most first.
+        var rightGroup = CreateButtonGroup(FlowDirection.RightToLeft, _fullScreenButton, _volumeBar, _volumeIcon, _captureButton);
+        controlsRow.Controls.Add(leftGroup, 0, 1);
+        controlsRow.SetColumnSpan(leftGroup, 2);
+        controlsRow.Controls.Add(centerGroup, 2, 1);
+        controlsRow.Controls.Add(rightGroup, 3, 1);
+        controlsRow.SetColumnSpan(rightGroup, 2);
 
         _bottomPanel.Controls.Add(controlsRow);
         ContextMenuStrip = _videoMenu;
         _videoHost.ContextMenuStrip = _videoMenu;
         _videoView.ContextMenuStrip = _videoMenu;
+        _emptyHint.AllowDrop = true;
+        _videoHost.Controls.Add(_emptyHint);
         _videoHost.Controls.Add(_videoView);
         Controls.Add(_videoHost);
         Controls.Add(_bottomPanel);
@@ -391,7 +435,11 @@ public partial class Form1 : Form
         _skipBackButton.Click += (_, _) => Skip(-GetSkipMilliseconds());
         _skipForwardButton.Click += (_, _) => Skip(GetSkipMilliseconds());
         _captureButton.Click += (_, _) => CaptureCurrentFrame();
-        _donateButton.Click += (_, _) => OpenDonateLink();
+        _playlistButton.Click += (_, _) => ShowPlaylistWindow();
+        _fullScreenButton.Click += (_, _) => EnterFullScreen();
+        _emptyHint.Click += async (_, _) => await OpenVideoAsync();
+        _emptyHint.DragEnter += HandleVideoDragEnter;
+        _emptyHint.DragDrop += HandleVideoDragDrop;
         _fullScreenMenuItem.Click += (_, _) => EnterFullScreen();
         _windowModeMenuItem.Click += (_, _) => ExitFullScreen();
         _effectMenuItem.Click += async (_, _) => await ShowVideoControlWindowAsync();
@@ -407,7 +455,12 @@ public partial class Form1 : Form
         _koreanMenuItem.Click += (_, _) => SetLanguage(true);
         _englishMenuItem.Click += (_, _) => SetLanguage(false);
         _videoMenu.Opening += (_, _) => UpdateVideoMenu();
-        _videoHost.Resize += (_, _) => ApplyVideoScale();
+        _videoHost.Resize += (_, _) =>
+        {
+            ApplyVideoScale();
+            CenterEmptyHint();
+        };
+        CenterEmptyHint(); // The first layout ran before this handler was attached.
 
         _seekBar.DragStarted += (_, _) => _isSeeking = true;
         _seekBar.UserValueChanged += (_, _) =>
@@ -750,6 +803,7 @@ public partial class Form1 : Form
             ApplyDesiredVolumeToPlayer();
             _currentFile = filePath;
             _playbackEnded = false;
+            _emptyHint.Visible = false;
 
             var started = false;
             for (var attempt = 0; attempt < 2 && !started; attempt++)
@@ -793,10 +847,11 @@ public partial class Form1 : Form
         {
             LogPlaybackFailure(filePath, ex);
             _currentFile = null;
+            _emptyHint.Visible = true;
             _playbackEnded = true;
             _seekBar.Enabled = false;
             _playPauseButton.IsPlaying = false;
-            _timeLabel.Text = "00:00 / 00:00";
+            SetTimeText(0, 0);
             Text = GetWindowTitle();
 
             if (!IsDisposed && !Disposing)
@@ -1211,7 +1266,7 @@ public partial class Form1 : Form
             _seekBar.Value = (int)Math.Clamp(nextTime * SeekMaximum / length, 0, SeekMaximum);
         }
 
-        _timeLabel.Text = $"{FormatTime(nextTime)} / {FormatTime(length)}";
+        SetTimeText(nextTime, length);
 
         if (defer)
         {
@@ -1323,7 +1378,7 @@ public partial class Form1 : Form
         }
 
         var previewTime = length * _seekBar.Value / SeekMaximum;
-        _timeLabel.Text = $"{FormatTime(previewTime)} / {FormatTime(length)}";
+        SetTimeText(previewTime, length);
     }
 
     private void RefreshPlayerState()
@@ -1350,11 +1405,11 @@ public partial class Form1 : Form
                 _seekBar.Value = (int)Math.Clamp(time * SeekMaximum / length, 0, SeekMaximum);
             }
 
-            _timeLabel.Text = $"{FormatTime(time)} / {FormatTime(length)}";
+            SetTimeText(time, length);
         }
         else
         {
-            _timeLabel.Text = "00:00 / 00:00";
+            SetTimeText(0, 0);
         }
 
         if (_currentFile is not null)
@@ -1481,7 +1536,7 @@ public partial class Form1 : Form
             _mediaPlayer.Volume = _desiredVolume;
         }
 
-        _volumeValueLabel.Text = $"{_desiredVolume}%";
+        _toolTip.SetToolTip(_volumeBar, $"{_desiredVolume}%");
     }
 
     private void ApplyDesiredVolumeToPlayer()
@@ -1497,7 +1552,7 @@ public partial class Form1 : Form
             _mediaPlayer.Volume = _desiredVolume;
         }
 
-        _volumeValueLabel.Text = $"{_desiredVolume}%";
+        _toolTip.SetToolTip(_volumeBar, $"{_desiredVolume}%");
     }
 
     private void ShowSkipSettingsWindow()
@@ -1746,10 +1801,18 @@ public partial class Form1 : Form
 
     private void ApplyLanguage()
     {
-        _openButton.Text = _useKorean ? "열기" : "Open";
-        _captureButton.Text = _useKorean ? "캡쳐" : "Capture";
-        _donateButton.Text = _useKorean ? "후원" : "Donate";
-        _volumeLabel.Text = _useKorean ? "볼륨" : "Vol";
+        // Icon-only buttons carry their name in a tooltip.
+        _toolTip.SetToolTip(_openButton, _useKorean ? "열기 (Ctrl+O)" : "Open (Ctrl+O)");
+        _toolTip.SetToolTip(_playlistButton, _useKorean ? "재생 목록" : "Playlist");
+        _toolTip.SetToolTip(_skipBackButton, _useKorean ? "뒤로 (←)" : "Back (←)");
+        _toolTip.SetToolTip(_playPauseButton, _useKorean ? "재생/일시정지 (Space)" : "Play/Pause (Space)");
+        _toolTip.SetToolTip(_skipForwardButton, _useKorean ? "앞으로 (→)" : "Forward (→)");
+        _toolTip.SetToolTip(_captureButton, _useKorean ? "화면 캡쳐" : "Capture frame");
+        _toolTip.SetToolTip(_fullScreenButton, _useKorean ? "전체화면" : "Fullscreen");
+        _toolTip.SetToolTip(_volumeBar, $"{_desiredVolume}%");
+        _emptyHint.SetText(
+            _useKorean ? "동영상을 여기에 끌어다 놓으세요" : "Drop a video here",
+            _useKorean ? "파일 열기 · Ctrl+O" : "Open file · Ctrl+O");
         _fullScreenMenuItem.Text = _useKorean ? "전체화면" : "Fullscreen";
         _windowModeMenuItem.Text = _useKorean ? "창모드" : "Window mode";
         _effectMenuItem.Text = _useKorean ? "효과" : "Effect";
@@ -1758,24 +1821,6 @@ public partial class Form1 : Form
         _captureSettingsMenuItem.Text = _useKorean ? "화면 캡쳐" : "Screen Capture";
         _languageMenuItem.Text = _useKorean ? "언어" : "Language";
         UpdateVideoMenu();
-    }
-
-    private void OpenDonateLink()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = AppLinks.DonateUrl,
-                UseShellExecute = true
-            });
-        }
-        catch (Exception ex)
-        {
-            ShowInfo(
-                _useKorean ? $"후원 페이지를 열 수 없습니다.\n{ex.Message}" : $"Could not open the donation page.\n{ex.Message}",
-                AppTitle);
-        }
     }
 
     private async Task QueueStartupUpdateCheckAsync()
@@ -1889,6 +1934,36 @@ public partial class Form1 : Form
             ? title
             : $"{title} - {Path.GetFileName(filePath)}";
     }
+
+    private void CenterEmptyHint()
+    {
+        _emptyHint.Location = new Point(
+            (_videoHost.ClientSize.Width - _emptyHint.Width) / 2,
+            (_videoHost.ClientSize.Height - _emptyHint.Height) / 2);
+    }
+
+    private void SetTimeText(long time, long length)
+    {
+        _timeLabel.Text = FormatTime(time);
+        _durationLabel.Text = FormatTime(length);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+
+        // Dark title bar to match the player; ignored on Windows versions without these attributes.
+        var on = 1;
+        DwmSetWindowAttribute(Handle, DwmwaUseImmersiveDarkMode, ref on, sizeof(int));
+        var captionColor = 0x001B1B1B; // COLORREF (BGR)
+        DwmSetWindowAttribute(Handle, DwmwaCaptionColor, ref captionColor, sizeof(int));
+    }
+
+    private const int DwmwaUseImmersiveDarkMode = 20;
+    private const int DwmwaCaptionColor = 35;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
