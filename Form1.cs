@@ -4,13 +4,13 @@ using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 public partial class Form1 : Form
 {
     private const int SeekMaximum = 10_000;
     private const int ShowNormal = 5;
-    private const string AppTitle = "Tech Archive Video Player";
+    private const string AppTitle = "Vidi";
     private const string UpdateUrl = "https://tech.trendarchive.io/Utility/VideoPlayer/";
     private static readonly TimeSpan ExternalOpenBurstWindow = TimeSpan.FromSeconds(2);
     private static readonly Color PanelColor = Color.FromArgb(22, 22, 22);
@@ -1914,8 +1914,7 @@ public partial class Form1 : Form
         {
             var directory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "Tech Archive",
-                "Video Player");
+                "Vidi");
             Directory.CreateDirectory(directory);
             File.AppendAllText(
                 Path.Combine(directory, "playback.log"),

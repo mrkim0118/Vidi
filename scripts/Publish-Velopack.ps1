@@ -1,11 +1,11 @@
 param(
     [string]$Version = "1.0.0",
-    [string]$PackId = "TechArchive.VideoPlayer",
-    [string]$PackTitle = "Tech Archive Video Player",
+    [string]$PackId = "Vidi",
+    [string]$PackTitle = "Vidi",
     [string]$Channel = "win",
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
-    [string]$MainExe = "TechArchiveVideoPlayer.exe",
+    [string]$MainExe = "Vidi.exe",
     [string]$Authors = "TechArchive",
     [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/VideoPlayer/",
     [string]$PublishDir = "",
@@ -60,7 +60,7 @@ function Convert-ToFileSafeName {
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-FullPath -BasePath $scriptRoot -Value ".."
-$projectPath = Resolve-FullPath -BasePath $repoRoot -Value "SimpleVideoPlayer.csproj"
+$projectPath = Resolve-FullPath -BasePath $repoRoot -Value "Vidi.csproj"
 
 if ([string]::IsNullOrWhiteSpace($PublishDir)) {
     $PublishDir = "artifacts\publish\$Version\$Runtime"
@@ -89,7 +89,7 @@ if (Test-Path $publishDirPath) {
 
 if (-not (Test-Path $releaseNotesPath)) {
     @(
-        "# Tech Archive Video Player $Version"
+        "# Vidi $Version"
         ""
         "- Initial Velopack release."
     ) | Set-Content -Path $releaseNotesPath -Encoding UTF8

@@ -1,6 +1,6 @@
 using System.Drawing.Drawing2D;
 
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 public sealed class PlayerSlider : Control
 {

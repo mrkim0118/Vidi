@@ -1,12 +1,12 @@
 using Microsoft.Win32;
 
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 internal static class FileAssociationService
 {
-    private const string AppName = "Tech Archive Video Player";
-    private const string ExeName = "TechArchiveVideoPlayer.exe";
-    private const string ApplicationKeyPath = @"Software\Classes\Applications\TechArchiveVideoPlayer.exe";
+    private const string AppName = "Vidi";
+    private const string ExeName = "Vidi.exe";
+    private const string ApplicationKeyPath = @"Software\Classes\Applications\Vidi.exe";
 
     public static void RegisterOpenWith()
     {

@@ -1,4 +1,4 @@
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 internal sealed class VideoHostPanel : Panel
 {

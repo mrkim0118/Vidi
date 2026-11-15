@@ -1,6 +1,6 @@
 using LibVLCSharp.Shared;
 
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 public static class VlcWarmupService
 {
@@ -108,7 +108,7 @@ public static class VlcWarmupService
         try
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var directory = Path.Combine(appData, "Tech Archive", "Video Player");
+            var directory = Path.Combine(appData, "Vidi");
             Directory.CreateDirectory(directory);
             File.AppendAllText(
                 Path.Combine(directory, "warmup.log"),

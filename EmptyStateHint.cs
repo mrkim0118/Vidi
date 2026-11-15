@@ -1,6 +1,6 @@
 using System.Drawing.Drawing2D;
 
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 // Shown over the black video area until a file is opened: icon, "drop a video" text, open hint.
 public sealed class EmptyStateHint : Control

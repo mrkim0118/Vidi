@@ -1,4 +1,4 @@
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 public sealed class PlaybackButton : Button
 {

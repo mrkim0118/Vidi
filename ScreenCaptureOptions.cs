@@ -1,4 +1,4 @@
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 public sealed record ScreenCaptureOptions(string Format, string SaveFolder)
 {
@@ -7,7 +7,7 @@ public sealed record ScreenCaptureOptions(string Format, string SaveFolder)
     public static ScreenCaptureOptions CreateDefault()
     {
         var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-        var folder = Path.Combine(pictures, "Tech Archive Video Player Captures");
+        var folder = Path.Combine(pictures, "Vidi Captures");
         return new ScreenCaptureOptions("png", folder);
     }
 

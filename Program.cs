@@ -1,6 +1,6 @@
 using Velopack;
 
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 static class Program
 {

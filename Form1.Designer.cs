@@ -1,4 +1,4 @@
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 partial class Form1
 {

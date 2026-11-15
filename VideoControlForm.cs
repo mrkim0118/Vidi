@@ -1,6 +1,6 @@
 using LibVLCSharp.Shared;
 
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 public sealed class VideoControlForm : Form
 {

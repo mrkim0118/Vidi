@@ -1,11 +1,11 @@
 using System.IO.Pipes;
 
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 public sealed class SingleInstanceServer : IDisposable
 {
-    public const string MutexName = "TechArchiveVideoPlayer.SingleInstance";
-    public const string PipeName = "TechArchiveVideoPlayer.OpenFile";
+    public const string MutexName = "Vidi.SingleInstance";
+    public const string PipeName = "Vidi.OpenFile";
     public const string ShowCommand = "SHOW";
     public const string OpenCommandPrefix = "OPEN\t";
 

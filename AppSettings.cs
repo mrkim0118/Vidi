@@ -1,4 +1,4 @@
-namespace SimpleVideoPlayer;
+﻿namespace Vidi;
 
 public sealed class AppSettings
 {
@@ -12,14 +12,19 @@ public sealed class AppSettings
         get
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appData, "Tech Archive", "Video Player", "settings.ini");
+            return Path.Combine(appData, "Vidi", "settings.ini");
         }
     }
+
+    // Settings saved before the rename to Vidi; read once when the new file does not exist yet.
+    private static string LegacyFilePath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Tech Archive", "Video Player", "settings.ini");
 
     public static AppSettings Load()
     {
         var settings = new AppSettings();
-        if (!File.Exists(FilePath))
+        var path = File.Exists(FilePath) ? FilePath : LegacyFilePath;
+        if (!File.Exists(path))
         {
             return settings;
         }
@@ -27,7 +32,7 @@ public sealed class AppSettings
         string[] lines;
         try
         {
-            lines = File.ReadAllLines(FilePath);
+            lines = File.ReadAllLines(path);
         }
         catch
         {

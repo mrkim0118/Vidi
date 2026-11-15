@@ -1,6 +1,6 @@
-using SimpleVideoPlayer;
+using Vidi;
 
-var tempAppData = Path.Combine(Path.GetTempPath(), "TechArchiveVideoPlayerTests", Guid.NewGuid().ToString("N"));
+var tempAppData = Path.Combine(Path.GetTempPath(), "VidiTests", Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(tempAppData);
 Environment.SetEnvironmentVariable("APPDATA", tempAppData);
 

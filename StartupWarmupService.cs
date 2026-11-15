@@ -1,12 +1,12 @@
 using Microsoft.Win32;
 
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 internal static class StartupWarmupService
 {
-    private const string ExeName = "TechArchiveVideoPlayer.exe";
+    private const string ExeName = "Vidi.exe";
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValueName = "TechArchiveVideoPlayerVlcWarmup";
+    private const string RunValueName = "VidiVlcWarmup";
 
     public static void Register()
     {

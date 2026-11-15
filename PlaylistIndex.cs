@@ -1,4 +1,4 @@
-namespace SimpleVideoPlayer;
+namespace Vidi;
 
 // Where the current playlist item ends up after the list changes. Pure, so it is tested.
 public static class PlaylistIndex
