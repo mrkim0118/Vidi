@@ -31,7 +31,7 @@ mp4, mkv, avi, mov, wmv, flv, webm, mpeg/mpg, m4v, 3gp, ts/mts/m2ts, ogv, vob, a
 
 ## 설치
 
-`Vidi-Setup-x.y.z.exe`를 실행합니다. 설치하지 않고 쓰려면 `Vidi-win-Portable.zip`의 압축을 풉니다.
+[최신 릴리스](https://github.com/mrkim0118/Vidi/releases/latest)에서 `Vidi-Setup-x.y.z.exe`를 받아 실행합니다. 설치하지 않고 쓰려면 `Vidi-win-Portable.zip`을 받아 압축을 풉니다.
 
 - Windows 10/11 64비트에서 동작합니다.
 - 설치 파일에 .NET 런타임이 포함돼 있어 따로 설치할 필요가 없습니다.
