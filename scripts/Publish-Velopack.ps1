@@ -6,7 +6,7 @@ param(
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
     [string]$MainExe = "Vidi.exe",
-    [string]$Authors = "TechArchive",
+    [string]$Authors = "Manggdy",
     [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/VideoPlayer/",
     [string]$PublishDir = "",
     [string]$OutputDir = "",
