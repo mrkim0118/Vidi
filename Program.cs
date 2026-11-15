@@ -36,6 +36,7 @@ static class Program
 
         ApplicationConfiguration.Initialize();
         using var form = new Form1(startupFile);
+        _ = form.Handle; // BeginInvoke from the pipe listener fails until the handle exists.
         using var singleInstanceServer = new SingleInstanceServer(form);
         singleInstanceServer.Start();
         Application.Run(form);

@@ -11,8 +11,9 @@ public partial class Form1 : Form
     private const int SeekMaximum = 10_000;
     private const int ShowNormal = 5;
     private const string AppTitle = "Tech Archive Video Player";
-    private const string AppVersion = "1.0.0";
     private const string UpdateUrl = "https://tech.trendarchive.io/Utility/VideoPlayer/";
+    private static readonly TimeSpan ExternalOpenBurstWindow = TimeSpan.FromSeconds(2);
+    private static readonly string AppVersion = typeof(Form1).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
 
     private readonly AppUpdateService _appUpdateService = new(UpdateUrl);
     private readonly VideoHostPanel _videoHost;
@@ -62,6 +63,7 @@ public partial class Form1 : Form
     private bool _isFullScreen;
     private bool _useKorean;
     private bool _startupUpdateQueued;
+    private DateTime _lastExternalOpenUtc = DateTime.MinValue;
     private bool _playbackEnded;
     private long _pendingSeekTime = -1;
     private long _requestedSeekTime = -1;
@@ -189,11 +191,18 @@ public partial class Form1 : Form
         _seekCommitTimer = new System.Windows.Forms.Timer { Interval = 120 };
         _seekCommitTimer.Tick += (_, _) => CommitPendingSeek();
 
+        if (!string.IsNullOrWhiteSpace(startupFile))
+        {
+            // Files sent by sibling processes of the same multi-select join this list before Shown.
+            _playlist.Add(startupFile);
+            _lastExternalOpenUtc = DateTime.UtcNow;
+        }
+
         Shown += async (_, _) =>
         {
-            if (!string.IsNullOrWhiteSpace(startupFile))
+            if (_playlist.Count > 0)
             {
-                await PlayFilesAsync([startupFile]);
+                await PlayFilesAsync([.. _playlist]);
             }
 
             await QueueStartupUpdateCheckAsync();
@@ -477,8 +486,9 @@ public partial class Form1 : Form
             {
                 AttachMediaPlayer(bundle);
             }
-            else
+            else if (!ReferenceEquals(_mediaPlayer, bundle.mediaPlayer))
             {
+                // Two callers awaited the same task; only dispose a bundle that is not the live one.
                 DisposeMediaPlayerBundle(bundle);
             }
 
@@ -596,7 +606,23 @@ public partial class Form1 : Form
             return;
         }
 
+        // Explorer multi-select starts one process per file; files arriving in a burst join one playlist.
+        var isBurst = DateTime.UtcNow - _lastExternalOpenUtc < ExternalOpenBurstWindow;
+        _lastExternalOpenUtc = DateTime.UtcNow;
+
         BringAppToFront();
+        if (isBurst)
+        {
+            // Through the gate so it lands after the first file's playlist reset.
+            await _playbackRequestGate.RunAsync(() =>
+            {
+                AppendPlaylistFiles([filePath]);
+                UpdatePlaylistWindow();
+                return Task.CompletedTask;
+            });
+            return;
+        }
+
         await PlayFilesAsync([filePath]);
         BringAppToFront();
     }
@@ -848,20 +874,24 @@ public partial class Form1 : Form
         _videoTransform = transform;
         UpdateVideoMenu();
 
-        if (_mediaPlayer is null)
+        // Inside the gate so no file load is using the player we are about to dispose.
+        await _playbackRequestGate.RunAsync(async () =>
         {
-            return;
-        }
+            if (_mediaPlayer is null)
+            {
+                return;
+            }
 
-        var filePath = _currentFile;
-        var resumeTime = _mediaPlayer.Time;
-        var shouldPlay = _mediaPlayer.IsPlaying;
-        await RecreateMediaPlayerForTransformAsync();
+            var filePath = _currentFile;
+            var resumeTime = _mediaPlayer.Time;
+            var shouldPlay = _mediaPlayer.IsPlaying;
+            await RecreateMediaPlayerForTransformAsync();
 
-        if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
-        {
-            await PlayFileAsync(filePath, resumeTime, shouldPlay);
-        }
+            if (!IsDisposed && !string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+            {
+                await PlayFileCoreAsync(filePath, resumeTime, shouldPlay);
+            }
+        });
     }
 
     private async Task RecreateMediaPlayerForTransformAsync()
@@ -887,14 +917,20 @@ public partial class Form1 : Form
         oldMediaPlayer?.Dispose();
         oldLibVlc?.Dispose();
 
-        var bundle = await Task.Run(() => CreateMediaPlayerBundle(_desiredVolume, _videoTransform));
-        if (IsDisposed)
+        // The old task still holds the disposed bundle; drop it so every caller gets the new one.
+        lock (_playerSync)
         {
-            DisposeMediaPlayerBundle(bundle);
-            return;
+            _mediaPlayerInitializationTask = null;
         }
 
-        AttachMediaPlayer(bundle);
+        try
+        {
+            await EnsureMediaPlayerAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Form closed while VLC was being recreated.
+        }
     }
 
     private void AdjustVideoScale(float delta)
@@ -1668,12 +1704,11 @@ public partial class Form1 : Form
             return;
         }
 
-        Directory.CreateDirectory(_captureOptions.SaveFolder);
         var filePath = Path.Combine(
             _captureOptions.SaveFolder,
-            $"capture_{DateTime.Now:yyyyMMdd_HHmmss}.{_captureOptions.Extension}");
+            $"capture_{DateTime.Now:yyyyMMdd_HHmmss_fff}.{_captureOptions.Extension}");
 
-        if (!SaveVisibleVideoFrame(filePath) && !player.TakeSnapshot(0, filePath, 0, 0))
+        if (!TryCreateCaptureFolder() || (!SaveVisibleVideoFrame(filePath) && !player.TakeSnapshot(0, filePath, 0, 0)))
         {
             ShowInfo(
                 _useKorean ? "현재 프레임을 캡쳐하지 못했습니다." : "Could not capture the current frame.",
@@ -1684,6 +1719,20 @@ public partial class Form1 : Form
         ShowInfo(
             _useKorean ? $"저장했습니다.\n{filePath}" : $"Saved.\n{filePath}",
             _useKorean ? "화면 캡쳐" : "Screen Capture");
+    }
+
+    private bool TryCreateCaptureFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(_captureOptions.SaveFolder);
+            return true;
+        }
+        catch
+        {
+            // e.g. a removed USB drive or a folder without write access.
+            return false;
+        }
     }
 
     private bool SaveVisibleVideoFrame(string filePath)
