@@ -22,6 +22,7 @@ try
     AssertEqual(true, loaded.UseKorean, "Language should keep persisting.");
 
     await AssertPlaybackRequestsAreSerializedAsync();
+    AssertPlaylistIndexMath();
 }
 finally
 {
@@ -61,6 +62,21 @@ async Task AssertPlaybackRequestsAreSerializedAsync()
     releaseFirst.SetResult();
     await Task.WhenAll(first, second);
     AssertEqual("1,2", string.Join(',', order), "Playback requests should be processed in order.");
+}
+
+static void AssertPlaylistIndexMath()
+{
+    // [a,b,c] playing b (1).
+    AssertEqual(0, PlaylistIndex.AfterMove(1, 0, 2), "Moving an earlier item past current shifts current left.");
+    AssertEqual(2, PlaylistIndex.AfterMove(1, 2, 0), "Moving a later item before current shifts current right.");
+    AssertEqual(2, PlaylistIndex.AfterMove(1, 1, 2), "Moving the current item follows it.");
+    AssertEqual(1, PlaylistIndex.AfterMove(1, 2, 2), "Moves after current leave it alone.");
+
+    AssertEqual(0, PlaylistIndex.AfterRemove(1, 0, 2), "Removing an earlier item shifts current left.");
+    AssertEqual(1, PlaylistIndex.AfterRemove(1, 2, 2), "Removing a later item leaves current alone.");
+    AssertEqual(1, PlaylistIndex.AfterRemove(1, 1, 2), "Removing current selects the item that took its place.");
+    AssertEqual(0, PlaylistIndex.AfterRemove(1, 1, 1), "Removing the current last item selects the new last one.");
+    AssertEqual(-1, PlaylistIndex.AfterRemove(0, 0, 0), "Removing the only item clears the selection.");
 }
 
 static void AssertEqual<T>(T expected, T actual, string message)

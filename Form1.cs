@@ -425,6 +425,7 @@ public partial class Form1 : Form
         };
 
         _volumeBar.UserValueChanged += (_, _) => ApplyVolumeFromMainBar();
+        _volumeBar.DragCompleted += (_, _) => SaveSettings(); // Once per drag, not per mouse move.
 
         _videoView.MouseDown += HandleVideoPanMouseDown;
         _videoView.MouseMove += HandleVideoPanMouseMove;
@@ -1396,42 +1397,11 @@ public partial class Form1 : Form
 
     private void Form1_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (IsZoomInKey(e.KeyData))
+        // Zoom, Space, arrows and Esc are handled in ProcessCmdKey, which runs first.
+        if (e.KeyCode == Keys.O && e.Control)
         {
-            AdjustVideoScale(0.1f);
+            _ = OpenVideoAsync();
             e.Handled = true;
-            return;
-        }
-
-        if (IsZoomOutKey(e.KeyData))
-        {
-            AdjustVideoScale(-0.1f);
-            e.Handled = true;
-            return;
-        }
-
-        switch (e.KeyCode)
-        {
-            case Keys.Space:
-                _ = TogglePlaybackAsync();
-                e.Handled = true;
-                break;
-            case Keys.Left:
-                Skip(-GetSkipMilliseconds());
-                e.Handled = true;
-                break;
-            case Keys.Right:
-                Skip(GetSkipMilliseconds());
-                e.Handled = true;
-                break;
-            case Keys.Escape when _isFullScreen:
-                ExitFullScreen();
-                e.Handled = true;
-                break;
-            case Keys.O when e.Control:
-                _ = OpenVideoAsync();
-                e.Handled = true;
-                break;
         }
     }
 
@@ -1512,7 +1482,6 @@ public partial class Form1 : Form
         }
 
         _volumeValueLabel.Text = $"{_desiredVolume}%";
-        SaveSettings();
     }
 
     private void ApplyDesiredVolumeToPlayer()
@@ -1636,22 +1605,11 @@ public partial class Form1 : Form
 
         var removingCurrent = index == _playlistIndex;
         _playlist.RemoveAt(index);
+        _playlistIndex = PlaylistIndex.AfterRemove(_playlistIndex, index, _playlist.Count);
 
-        if (_playlist.Count == 0)
+        if (removingCurrent && _playlistIndex >= 0)
         {
-            _playlistIndex = -1;
-            UpdatePlaylistWindow();
-            return;
-        }
-
-        if (index < _playlistIndex)
-        {
-            _playlistIndex--;
-        }
-
-        if (removingCurrent)
-        {
-            await PlayPlaylistIndexAsync(Math.Min(index, _playlist.Count - 1));
+            await PlayPlaylistIndexAsync(_playlistIndex);
             return;
         }
 
@@ -1668,19 +1626,7 @@ public partial class Form1 : Form
         var item = _playlist[fromIndex];
         _playlist.RemoveAt(fromIndex);
         _playlist.Insert(toIndex, item);
-
-        if (_playlistIndex == fromIndex)
-        {
-            _playlistIndex = toIndex;
-        }
-        else if (fromIndex < _playlistIndex && toIndex >= _playlistIndex)
-        {
-            _playlistIndex--;
-        }
-        else if (fromIndex > _playlistIndex && toIndex <= _playlistIndex)
-        {
-            _playlistIndex++;
-        }
+        _playlistIndex = PlaylistIndex.AfterMove(_playlistIndex, fromIndex, toIndex);
 
         UpdatePlaylistWindow();
     }
@@ -1708,7 +1654,8 @@ public partial class Form1 : Form
             _captureOptions.SaveFolder,
             $"capture_{DateTime.Now:yyyyMMdd_HHmmss_fff}.{_captureOptions.Extension}");
 
-        if (!TryCreateCaptureFolder() || (!SaveVisibleVideoFrame(filePath) && !player.TakeSnapshot(0, filePath, 0, 0)))
+        // VLC snapshot first: it saves the real frame, without overlapping windows or zoom.
+        if (!TryCreateCaptureFolder() || (!player.TakeSnapshot(0, filePath, 0, 0) && !SaveVisibleVideoFrame(filePath)))
         {
             ShowInfo(
                 _useKorean ? "현재 프레임을 캡쳐하지 못했습니다." : "Could not capture the current frame.",

@@ -26,7 +26,7 @@ public static class VlcWarmupService
             }
 
             WriteLog(isStartupWarmup ? "startup warmup started" : "warmup started");
-            var touchedBytes = TouchVlcFiles(isStartupWarmup);
+            var touchedBytes = TouchVlcFiles();
             WriteLog($"vlc files touched {touchedBytes / 1024 / 1024} MB");
             var warmupTask = Task.Run(() =>
             {
@@ -63,53 +63,15 @@ public static class VlcWarmupService
         }
     }
 
-    private static long TouchVlcFiles(bool fullPluginWarmup)
+    // Only the core files: reading every plugin DLL at each Windows login cost 100MB+ of disk I/O.
+    private static long TouchVlcFiles()
     {
         long touchedBytes = 0;
         var vlcDirectory = Path.Combine(AppContext.BaseDirectory, "libvlc", "win-x64");
         touchedBytes += ReadFile(Path.Combine(vlcDirectory, "libvlc.dll"), maxBytes: 8 * 1024 * 1024);
         touchedBytes += ReadFile(Path.Combine(vlcDirectory, "libvlccore.dll"), maxBytes: 8 * 1024 * 1024);
         touchedBytes += ReadFile(Path.Combine(vlcDirectory, "plugins", "plugins.dat"), maxBytes: 512 * 1024);
-
-        if (!fullPluginWarmup)
-        {
-            return touchedBytes;
-        }
-
-        var pluginsDirectory = Path.Combine(vlcDirectory, "plugins");
-        if (!Directory.Exists(pluginsDirectory))
-        {
-            return touchedBytes;
-        }
-
-        var pluginPaths = Directory
-            .EnumerateFiles(pluginsDirectory, "*.dll", SearchOption.AllDirectories)
-            .OrderBy(GetPluginWarmupPriority)
-            .ThenBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var pluginPath in pluginPaths)
-        {
-            touchedBytes += ReadFile(pluginPath, maxBytes: long.MaxValue);
-        }
-
         return touchedBytes;
-    }
-
-    private static int GetPluginWarmupPriority(string pluginPath)
-    {
-        var directory = Path.GetFileName(Path.GetDirectoryName(pluginPath));
-        return directory switch
-        {
-            "codec" => 0,
-            "packetizer" => 1,
-            "demux" => 2,
-            "access" => 3,
-            "video_output" => 4,
-            "audio_output" => 5,
-            "video_filter" => 6,
-            "audio_filter" => 7,
-            _ => 20
-        };
     }
 
     private static long ReadFile(string filePath, long maxBytes)
