@@ -1,8 +1,14 @@
-# Vidi
+<p align="center">
+  <img src="icons/TASP_icon_256x256.png" width="128" alt="Vidi 아이콘">
+</p>
 
-**한국어** | [English](README.en.md)
+<h1 align="center">Vidi</h1>
 
-가볍고 빠른 Windows용 동영상 플레이어입니다. 파일을 끌어다 놓으면 바로 재생됩니다.
+<p align="center">가볍고 빠른 Windows용 동영상 플레이어입니다. 파일을 끌어다 놓으면 바로 재생됩니다.</p>
+
+<p align="center">만든 사람: <b>Manggdy</b></p>
+
+<p align="center"><b>한국어</b> | <a href="README.en.md">English</a></p>
 
 LibVLC 기반이라 거의 모든 동영상 형식을 별도 코덱 설치 없이 재생합니다.
 
@@ -65,7 +71,3 @@ powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1
 
 - [LibVLCSharp](https://github.com/videolan/libvlcsharp) / [LibVLC](https://www.videolan.org/vlc/libvlc.html)
 - [Velopack](https://velopack.io/)
-
-## 만든 사람
-
-Manggdy

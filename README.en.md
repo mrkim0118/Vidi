@@ -1,8 +1,14 @@
-# Vidi
+<p align="center">
+  <img src="icons/TASP_icon_256x256.png" width="128" alt="Vidi icon">
+</p>
 
-[한국어](README.md) | **English**
+<h1 align="center">Vidi</h1>
 
-A lightweight, fast video player for Windows. Drop a file on it and it plays.
+<p align="center">A lightweight, fast video player for Windows. Drop a file on it and it plays.</p>
+
+<p align="center">Author: <b>Manggdy</b></p>
+
+<p align="center"><a href="README.md">한국어</a> | <b>English</b></p>
 
 Built on LibVLC, so it plays almost any video format without installing extra codecs.
 
@@ -65,7 +71,3 @@ Output goes to `artifacts\velopack\Releases`.
 
 - [LibVLCSharp](https://github.com/videolan/libvlcsharp) / [LibVLC](https://www.videolan.org/vlc/libvlc.html)
 - [Velopack](https://velopack.io/)
-
-## Author
-
-Manggdy
