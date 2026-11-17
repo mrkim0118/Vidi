@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version = "1.0.0",
     [string]$PackId = "Vidi",
     [string]$PackTitle = "Vidi",
@@ -10,7 +10,9 @@ param(
     [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/VideoPlayer/",
     [string]$PublishDir = "",
     [string]$OutputDir = "",
-    [string]$ReleaseNotes = ""
+    [string]$ReleaseNotes = "",
+    # Thumbprint of a code-signing certificate in Cert:\CurrentUser\My; empty = unsigned.
+    [string]$SignCertThumbprint = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -125,6 +127,11 @@ try {
     Get-ChildItem -LiteralPath $publishDirPath -Filter "*.pdb" -File -ErrorAction SilentlyContinue |
         Remove-Item -Force -ErrorAction SilentlyContinue
 
+    $signArgs = @()
+    if (-not [string]::IsNullOrWhiteSpace($SignCertThumbprint)) {
+        $signArgs = @("--signParams", "/sha1 $SignCertThumbprint /fd sha256 /tr http://timestamp.digicert.com /td sha256")
+    }
+
     dotnet tool run vpk pack `
         --packId $PackId `
         --packVersion $Version `
@@ -136,7 +143,8 @@ try {
         --runtime $Runtime `
         --releaseNotes $releaseNotesPath `
         --outputDir $outputDirPath `
-        --shortcuts "Desktop,StartMenuRoot"
+        --shortcuts "Desktop,StartMenuRoot" `
+        @signArgs
     if ($LASTEXITCODE -ne 0) {
         throw "vpk pack failed."
     }
