@@ -1,73 +1,102 @@
 <p align="center">
-  <img src="icons/TASP_icon_256x256.png" width="128" alt="Vidi 아이콘">
+  <img src="icons/TASP_icon_256x256.png" width="128" alt="Vidi icon">
 </p>
 
 <h1 align="center">Vidi</h1>
 
-<p align="center">가볍고 빠른 Windows용 동영상 플레이어입니다. 파일을 끌어다 놓으면 바로 재생됩니다.</p>
+<p align="center">A lightweight, fast video player for Windows. Drop a file on it and it plays.</p>
 
-<p align="center">만든 사람: <b>Manggdy</b></p>
+<p align="center">Author: <b>Manggdy</b></p>
 
-<p align="center"><b>한국어</b> | <a href="README.en.md">English</a></p>
+<p align="center"><b>English</b> | <a href="README.ko.md">한국어</a></p>
 
-LibVLC 기반이라 거의 모든 동영상 형식을 별도 코덱 설치 없이 재생합니다.
+Built on LibVLC, so it plays almost any video format without installing extra codecs.
 
-## 주요 기능
+## Download
 
-- **끌어다 놓기 재생**: 파일을 창에 놓거나 탐색기에서 더블클릭하면 바로 재생합니다. 여러 파일을 한 번에 열면 모두 재생 목록에 들어갑니다.
-- **재생 목록**: 순서 바꾸기, 추가, 삭제를 지원합니다.
-- **구간 건너뛰기**: 앞뒤로 건너뛸 시간을 직접 정할 수 있습니다.
-- **화면 캡처**: 현재 프레임을 원본 해상도로 저장합니다. 기본 위치는 `사진\Vidi Captures`입니다.
-- **영상 효과**: 90°/180°/270° 회전, 좌우 반전, 확대·축소, 밝기 등 색 조절을 할 수 있습니다.
-- **전체화면**을 지원합니다.
-- **한국어 / English** 화면을 전환할 수 있습니다.
-- **자동 업데이트**: 새 버전이 나오면 알려 주고 바로 설치합니다.
+Get the latest release from the [Releases](https://github.com/mrkim0118/Vidi/releases/latest) page:
 
-## 단축키
+- `Vidi-Setup-x.y.z.exe`: installer
+- `Vidi-win-Portable.zip`: no installation needed; unzip and run `Vidi.exe`
 
-| 키 | 동작 |
+## Features
+
+- **Drag and drop**: Drop a file on the window or double-click it in Explorer to start playing. Opening several files at once adds them all to the playlist.
+- **Playlist**: Reorder, add and remove items.
+- **Skip forward/back**: Choose how many seconds each skip jumps.
+- **Frame capture**: Save the current frame at full resolution.
+- **Video effects**: Rotate 90°/180°/270°, flip horizontally, zoom in/out, and adjust brightness and color.
+- **Full screen**: Watch in full screen mode.
+- **Korean / English**: Switch the interface language.
+- **Automatic updates**: Vidi tells you when a new version is out and installs it in place.
+
+## Requirements
+
+- Windows 10 or 11 (x64)
+- The .NET runtime is included in the installer, so nothing else needs to be installed.
+
+## Usage
+
+### Keyboard shortcuts
+
+| Key | Action |
 |---|---|
-| `Space` | 재생 / 일시정지 |
-| `←` / `→` | 뒤로 / 앞으로 건너뛰기 |
-| `+` / `-` | 확대 / 축소 |
-| `Ctrl+O` | 파일 열기 |
-| `Esc` | 전체화면 종료 |
+| `Space` | Play / pause |
+| `←` / `→` | Skip back / forward |
+| `+` / `-` | Zoom in / out |
+| `Ctrl+O` | Open file |
+| `Esc` | Exit full screen |
 
-## 지원 형식
+### Supported formats
 
 mp4, mkv, avi, mov, wmv, flv, webm, mpeg/mpg, m4v, 3gp, ts/mts/m2ts, ogv, vob, asf, rm/rmvb, divx, xvid, h264, h265/hevc
 
-## 설치
+## Data & Settings
 
-[최신 릴리스](https://github.com/mrkim0118/Vidi/releases/latest)에서 `Vidi-Setup-x.y.z.exe`를 받아 실행합니다. 설치하지 않고 쓰려면 `Vidi-win-Portable.zip`을 받아 압축을 풉니다.
+| Data | Location |
+|---|---|
+| Settings | `%AppData%\Vidi\settings.ini` |
+| Frame captures | `Pictures\Vidi Captures` (default, changeable) |
 
-- Windows 10/11 64비트에서 동작합니다.
-- 설치 파일에 .NET 런타임이 포함돼 있어 따로 설치할 필요가 없습니다.
+## Build from Source
 
-## 직접 빌드하기
+Requires the .NET 8 SDK.
 
-필요한 것: .NET 8 SDK
+### Build
 
-```bash
+```powershell
 dotnet build Vidi.csproj
 ```
 
-테스트:
+### Test
 
-```bash
+```powershell
 dotnet run --project Vidi.Tests
 ```
 
-배포 패키지(Velopack) 만들기:
+### Release
 
 ```powershell
-$env:DOTNET_ROLL_FORWARD = 'Major'  # vpk 도구가 .NET 9를 요구합니다
+$env:DOTNET_ROLL_FORWARD = 'Major'  # the vpk tool needs .NET 9
 powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.0.0
 ```
 
-결과물은 `artifacts\velopack\Releases`에 생깁니다.
+Output goes to `artifacts\velopack\Releases`.
 
-## 사용한 라이브러리
+## Project Layout
+
+| Path | Contents |
+|---|---|
+| `Form1.cs`, `VideoControlForm.cs` | Main window and playback controls |
+| `PlaylistForm.cs` | Playlist window |
+| `AppSettings.cs` | Settings load and save |
+| `AppUpdateService.cs` | Velopack update check |
+| `FileAssociationService.cs` | Explorer file associations |
+| `Vidi.Tests/` | Tests |
+| `icons/` | App icons |
+| `scripts/Publish-Velopack.ps1` | Release packaging |
+
+## Libraries
 
 - [LibVLCSharp](https://github.com/videolan/libvlcsharp) / [LibVLC](https://www.videolan.org/vlc/libvlc.html)
 - [Velopack](https://velopack.io/)
