@@ -28,7 +28,7 @@ Get the latest release from the [Releases](https://github.com/mrkim0118/Vidi/rel
 - **Video effects**: Rotate 90°/180°/270°, flip horizontally, zoom in/out, and adjust brightness and color.
 - **Full screen**: Watch in full screen mode.
 - **Korean / English**: Switch the interface language.
-- **Automatic updates**: Vidi tells you when a new version is out and installs it in place.
+- **Update check**: On launch, checks the latest GitHub release and asks whether to download and install the new version.
 
 ## Requirements
 
@@ -90,7 +90,7 @@ Output goes to `artifacts\velopack\Releases`.
 | `Form1.cs`, `VideoControlForm.cs` | Main window and playback controls |
 | `PlaylistForm.cs` | Playlist window |
 | `AppSettings.cs` | Settings load and save |
-| `AppUpdateService.cs` | Velopack update check |
+| `GitHubUpdater.cs` | GitHub release update check |
 | `FileAssociationService.cs` | Explorer file associations |
 | `Vidi.Tests/` | Tests |
 | `icons/` | App icons |

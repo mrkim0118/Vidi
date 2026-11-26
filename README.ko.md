@@ -28,7 +28,7 @@ LibVLC 기반이라 거의 모든 동영상 형식을 별도 코덱 설치 없�
 - **영상 효과**: 90°/180°/270° 회전, 좌우 반전, 확대·축소, 밝기 등 색 조절을 할 수 있습니다.
 - **전체화면**: 전체화면으로 볼 수 있습니다.
 - **한국어 / English**: 화면 언어를 전환할 수 있습니다.
-- **자동 업데이트**: 새 버전이 나오면 알려 주고 바로 설치합니다.
+- **업데이트 확인**: 실행할 때 GitHub 최신 릴리스를 확인하고, 새 버전이 있으면 내려받아 설치할지 묻습니다.
 
 ## 요구 사항
 
@@ -90,7 +90,7 @@ powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1
 | `Form1.cs`, `VideoControlForm.cs` | 메인 창과 재생 컨트롤 |
 | `PlaylistForm.cs` | 재생 목록 창 |
 | `AppSettings.cs` | 설정 불러오기·저장 |
-| `AppUpdateService.cs` | Velopack 업데이트 확인 |
+| `GitHubUpdater.cs` | GitHub 릴리스 업데이트 확인 |
 | `FileAssociationService.cs` | 탐색기 파일 연결 |
 | `Vidi.Tests/` | 테스트 |
 | `icons/` | 앱 아이콘 |

@@ -11,7 +11,6 @@ public partial class Form1 : Form
     private const int SeekMaximum = 10_000;
     private const int ShowNormal = 5;
     private const string AppTitle = "Vidi";
-    private const string UpdateUrl = "https://tech.trendarchive.io/Utility/VideoPlayer/";
     private static readonly TimeSpan ExternalOpenBurstWindow = TimeSpan.FromSeconds(2);
     private static readonly Color PanelColor = Color.FromArgb(22, 22, 22);
     private static readonly Color IconColor = Color.FromArgb(214, 214, 214);
@@ -19,7 +18,6 @@ public partial class Form1 : Form
     private static readonly Font IconFont = CreateIconFont();
     private static readonly string AppVersion = typeof(Form1).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
 
-    private readonly AppUpdateService _appUpdateService = new(UpdateUrl);
     private readonly VideoHostPanel _videoHost;
     private readonly VideoView _videoView;
     private readonly Panel _bottomPanel;
@@ -1831,33 +1829,15 @@ public partial class Form1 : Form
         }
 
         _startupUpdateQueued = true;
-        await Task.Delay(TimeSpan.FromSeconds(60));
-        if (!IsDisposed)
-        {
-            await CheckForUpdatesOnStartupAsync();
-        }
-    }
-
-    private async Task CheckForUpdatesOnStartupAsync()
-    {
-        var checkResult = await _appUpdateService.CheckForUpdatesAsync();
-        if (checkResult.Status == AppUpdateStatus.UpdateAvailable)
-        {
-            await PromptAndInstallUpdateAsync(checkResult);
-        }
-    }
-
-    private async Task PromptAndInstallUpdateAsync(AppUpdateResult updateResult)
-    {
-        if (updateResult.UpdateInfo is null)
+        var release = await GitHubUpdater.FindNewerReleaseAsync();
+        if (release is null || IsDisposed)
         {
             return;
         }
 
-        var targetVersion = updateResult.Version ?? "new";
         var message = _useKorean
-            ? $"새 버전 v{targetVersion}을 사용할 수 있습니다.\n현재 버전: {AppVersion}\n\n지금 다운로드하고 설치할까요?"
-            : $"Version v{targetVersion} is available.\nCurrent version: {AppVersion}\n\nDownload and install it now?";
+            ? $"새 버전 v{release.Version}을 사용할 수 있습니다.\n현재 버전: {AppVersion}\n\n지금 다운로드하고 설치할까요?"
+            : $"Version v{release.Version} is available.\nCurrent version: {AppVersion}\n\nDownload and install it now?";
         var title = _useKorean ? "업데이트 확인" : "Update Available";
 
         if (MessageBox.Show(this, message, title, MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes)
@@ -1865,27 +1845,20 @@ public partial class Form1 : Form
             return;
         }
 
+        var originalTitle = Text;
         UseWaitCursor = true;
         try
         {
-            var downloadResult = await _appUpdateService.DownloadUpdateAsync(updateResult.UpdateInfo);
-            if (downloadResult.Status != AppUpdateStatus.Downloaded)
-            {
-                ShowInfo(
-                    _useKorean ? $"업데이트 다운로드에 실패했습니다.\n{downloadResult.Message}" : $"Failed to download the update.\n{downloadResult.Message}",
-                    title);
-                return;
-            }
-
-            var applyResult = _appUpdateService.ApplyDownloadedUpdateAndRestart();
-            if (applyResult.Status == AppUpdateStatus.Installing)
-            {
-                Application.Exit();
-                return;
-            }
-
+            await GitHubUpdater.DownloadAndStartSetupAsync(
+                release,
+                new Progress<int>(percent => Text = _useKorean ? $"업데이트 다운로드 중... {percent}%" : $"Downloading update... {percent}%"));
+            Close();
+        }
+        catch (Exception ex)
+        {
+            Text = originalTitle;
             ShowInfo(
-                _useKorean ? $"업데이트 적용에 실패했습니다.\n{applyResult.Message}" : $"Failed to apply the update.\n{applyResult.Message}",
+                _useKorean ? $"업데이트 다운로드에 실패했습니다.\n{ex.Message}" : $"Failed to download the update.\n{ex.Message}",
                 title);
         }
         finally
