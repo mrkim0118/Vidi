@@ -9,6 +9,10 @@ namespace Vidi;
 public partial class Form1 : Form
 {
     private const int SeekMaximum = 10_000;
+    private const int VolumeStep = 5;
+    private static readonly TimeSpan FullScreenControlsTimeout = TimeSpan.FromSeconds(2.5);
+    private static readonly float[] PlaybackRates = [0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f];
+    private static readonly string[] SubtitleExtensions = [".srt", ".smi", ".sami", ".ass", ".ssa", ".vtt", ".sub"];
     private const int ShowNormal = 5;
     private const string AppTitle = "Vidi";
     private static readonly TimeSpan ExternalOpenBurstWindow = TimeSpan.FromSeconds(2);
@@ -52,6 +56,12 @@ public partial class Form1 : Form
     private readonly ToolStripMenuItem _languageMenuItem;
     private readonly ToolStripMenuItem _koreanMenuItem;
     private readonly ToolStripMenuItem _englishMenuItem;
+    private readonly ToolStripMenuItem _recentMenuItem = new();
+    private readonly ToolStripMenuItem _speedMenuItem = new();
+    private readonly ToolStripMenuItem _subtitleMenuItem = new();
+    private readonly ToolStripMenuItem _audioTrackMenuItem = new();
+    private readonly ToolStripMenuItem _repeatMenuItem = new();
+    private readonly ResumeStore _resumeStore = new(Path.Combine(AppSettings.DataDirectory, "resume.txt"));
     private readonly System.Windows.Forms.Timer _uiTimer;
     private readonly System.Windows.Forms.Timer _seekCommitTimer;
     private readonly object _playerSync = new();
@@ -95,6 +105,14 @@ public partial class Form1 : Form
     private ScreenCaptureSettingsForm? _captureSettingsForm;
     private PlaylistForm? _playlistForm;
     private ScreenCaptureOptions _captureOptions;
+    private bool _isMuted;
+    private float _rate = 1f;
+    private RepeatMode _repeatMode;
+    private long _abStart = -1;
+    private long _abEnd = -1;
+    private Point _lastMousePosition;
+    private DateTime _lastMouseMoveUtc;
+    private bool _cursorHidden;
 
     public Form1(string? startupFile = null)
     {
@@ -186,27 +204,46 @@ public partial class Form1 : Form
             _englishMenuItem
         });
 
+        // Placeholders so the submenu arrows show; the real items are built when the menu opens.
+        foreach (var dynamicMenu in new[] { _recentMenuItem, _speedMenuItem, _subtitleMenuItem, _audioTrackMenuItem, _repeatMenuItem })
+        {
+            dynamicMenu.DropDownItems.Add(new ToolStripMenuItem("-") { Enabled = false });
+        }
+
         _videoMenu = new ContextMenuStrip();
         _videoMenu.Items.AddRange(new ToolStripItem[]
         {
             _fullScreenMenuItem,
             _windowModeMenuItem,
             new ToolStripSeparator(),
+            _recentMenuItem,
+            _playlistMenuItem,
+            new ToolStripSeparator(),
+            _speedMenuItem,
+            _subtitleMenuItem,
+            _audioTrackMenuItem,
+            _repeatMenuItem,
+            new ToolStripSeparator(),
             _effectMenuItem,
             _videoTransformMenuItem,
             _resetZoomMenuItem,
-            _playlistMenuItem,
+            new ToolStripSeparator(),
             _captureSettingsMenuItem,
             _skipSettingsMenuItem,
             _languageMenuItem
         });
+        DarkMenuRenderer.Apply(_videoMenu);
 
         BuildLayout();
         WireEvents();
         ApplyLanguage();
 
         _uiTimer = new System.Windows.Forms.Timer { Interval = 250 };
-        _uiTimer.Tick += (_, _) => RefreshPlayerState();
+        _uiTimer.Tick += (_, _) =>
+        {
+            RefreshPlayerState();
+            UpdateFullScreenChrome();
+        };
         _uiTimer.Start();
 
         _seekCommitTimer = new System.Windows.Forms.Timer { Interval = 120 };
@@ -234,6 +271,9 @@ public partial class Form1 : Form
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _uiTimer.Stop();
+        RememberPosition();
+        _resumeStore.Save();
+        ShowHiddenCursor();
         var player = _mediaPlayer;
         var libVlc = _libVlc;
         _mediaPlayer = null;
@@ -291,6 +331,25 @@ public partial class Form1 : Form
                 return true;
             case Keys.Escape when _isFullScreen:
                 ExitFullScreen();
+                return true;
+            case Keys.F:
+            case Keys.Enter:
+                ToggleFullScreen();
+                return true;
+            case Keys.Up:
+                ChangeVolume(VolumeStep);
+                return true;
+            case Keys.Down:
+                ChangeVolume(-VolumeStep);
+                return true;
+            case Keys.M:
+                ToggleMute();
+                return true;
+            case Keys.OemPeriod:
+                StepFrame(forward: true);
+                return true;
+            case Keys.Oemcomma:
+                StepFrame(forward: false);
                 return true;
         }
 
@@ -478,6 +537,20 @@ public partial class Form1 : Form
         _volumeBar.UserValueChanged += (_, _) => ApplyVolumeFromMainBar();
         _volumeBar.DragCompleted += (_, _) => SaveSettings(); // Once per drag, not per mouse move.
 
+        _volumeIcon.Click += (_, _) => ToggleMute();
+        _volumeIcon.Cursor = Cursors.Hand;
+        foreach (var surface in new Control[] { _videoView, _videoHost })
+        {
+            surface.MouseDoubleClick += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Left)
+                {
+                    ToggleFullScreen();
+                }
+            };
+            surface.MouseWheel += (_, e) => ChangeVolume(Math.Sign(e.Delta) * VolumeStep);
+        }
+
         _videoView.MouseDown += HandleVideoPanMouseDown;
         _videoView.MouseMove += HandleVideoPanMouseMove;
         _videoView.MouseUp += HandleVideoViewMouseUp;
@@ -632,11 +705,27 @@ public partial class Form1 : Form
 
     private async void HandleVideoDragDrop(object? sender, DragEventArgs e)
     {
-        if (TryGetDroppedFiles(e.Data, out var filePaths))
+        if (!TryGetDroppedFiles(e.Data, out var filePaths))
         {
-            await PlayFilesAsync(filePaths);
+            return;
+        }
+
+        // Subtitle files attach to the playing video instead of joining the playlist.
+        var subtitles = filePaths.Where(IsSubtitleFile).ToArray();
+        foreach (var subtitle in subtitles)
+        {
+            AddSubtitle(subtitle);
+        }
+
+        var videos = filePaths.Except(subtitles).ToArray();
+        if (videos.Length > 0)
+        {
+            await PlayFilesAsync(videos);
         }
     }
+
+    private static bool IsSubtitleFile(string path) =>
+        SubtitleExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     private static bool TryGetDroppedFiles(IDataObject? data, out string[] filePaths)
     {
@@ -797,11 +886,20 @@ public partial class Form1 : Form
         {
             var player = await EnsureMediaPlayerAsync();
             EnsureVideoSurfaceReady(player);
+            RememberPosition();
             player.Stop();
             ApplyDesiredVolumeToPlayer();
             _currentFile = filePath;
             _playbackEnded = false;
             _emptyHint.Visible = false;
+            _abStart = _abEnd = -1;
+            if (startTime == 0)
+            {
+                startTime = _resumeStore.GetTime(filePath);
+            }
+
+            _resumeStore.Record(filePath, startTime, 0);
+            _resumeStore.Save();
 
             var started = false;
             for (var attempt = 0; attempt < 2 && !started; attempt++)
@@ -821,6 +919,8 @@ public partial class Form1 : Form
             }
 
             ApplyDesiredVolumeToPlayer();
+            player.Mute = _isMuted;
+            player.SetRate(_rate);
             player.EnableMouseInput = false;
             player.EnableKeyInput = false;
 
@@ -1415,6 +1515,60 @@ public partial class Form1 : Form
             _playPauseButton.IsPlaying = player.IsPlaying;
         }
 
+        // VLC drops a mute set before its audio output exists, so keep re-applying it.
+        if (player.Mute != _isMuted && player.IsPlaying)
+        {
+            player.Mute = _isMuted;
+        }
+
+        if (_abEnd > _abStart && _abStart >= 0 && time >= _abEnd && !_isSeeking)
+        {
+            SeekToTime(_abStart);
+        }
+    }
+
+    private void UpdateFullScreenChrome()
+    {
+        if (!_isFullScreen)
+        {
+            return;
+        }
+
+        var mouse = Cursor.Position;
+        if (mouse != _lastMousePosition)
+        {
+            _lastMousePosition = mouse;
+            _lastMouseMoveUtc = DateTime.UtcNow;
+            ShowHiddenCursor();
+            if (!_bottomPanel.Visible)
+            {
+                _bottomPanel.Visible = true;
+                _bottomPanel.BringToFront();
+            }
+
+            return;
+        }
+
+        var idle = DateTime.UtcNow - _lastMouseMoveUtc > FullScreenControlsTimeout;
+        var overControls = _bottomPanel.Visible && _bottomPanel.RectangleToScreen(_bottomPanel.ClientRectangle).Contains(mouse);
+        if (idle && !overControls && !_videoMenu.Visible && !_seekBar.IsDragging && ActiveForm == this)
+        {
+            _bottomPanel.Visible = false;
+            if (!_cursorHidden)
+            {
+                Cursor.Hide();
+                _cursorHidden = true;
+            }
+        }
+    }
+
+    private void ShowHiddenCursor()
+    {
+        if (_cursorHidden)
+        {
+            Cursor.Show();
+            _cursorHidden = false;
+        }
     }
 
     private void QueuePlaybackEnded()
@@ -1434,9 +1588,26 @@ public partial class Form1 : Form
             return;
         }
 
+        if (_currentFile is not null)
+        {
+            _resumeStore.Record(_currentFile, 0, 0); // Finished: next time starts from the beginning.
+        }
+
+        if (_repeatMode == RepeatMode.One && _currentFile is not null)
+        {
+            _ = PlayFileAsync(_currentFile);
+            return;
+        }
+
         if (_playlistIndex >= 0 && _playlistIndex + 1 < _playlist.Count)
         {
             _ = PlayNextPlaylistItemAsync();
+            return;
+        }
+
+        if (_repeatMode == RepeatMode.All && _playlist.Count > 0)
+        {
+            _ = PlayPlaylistIndexAsync(0);
             return;
         }
 
@@ -1475,6 +1646,7 @@ public partial class Form1 : Form
         _resetZoomMenuItem.Enabled = Math.Abs(GetVideoDisplayScale() - 1.0f) > 0.001f || _videoPanOffset != Point.Empty;
         _koreanMenuItem.Checked = _useKorean;
         _englishMenuItem.Checked = !_useKorean;
+        RebuildDynamicMenus();
     }
 
     private void EnterFullScreen()
@@ -1494,6 +1666,25 @@ public partial class Form1 : Form
         WindowState = FormWindowState.Normal;
         Bounds = Screen.FromControl(this).Bounds;
         TopMost = true;
+
+        // Float the controls over the video so showing them does not resize the picture.
+        _bottomPanel.Dock = DockStyle.None;
+        _bottomPanel.SetBounds(0, ClientSize.Height - _bottomPanel.Height, ClientSize.Width, _bottomPanel.Height);
+        _bottomPanel.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+        _lastMousePosition = Cursor.Position;
+        _lastMouseMoveUtc = DateTime.MinValue;
+    }
+
+    private void ToggleFullScreen()
+    {
+        if (_isFullScreen)
+        {
+            ExitFullScreen();
+        }
+        else
+        {
+            EnterFullScreen();
+        }
     }
 
     private void ExitFullScreen()
@@ -1509,7 +1700,10 @@ public partial class Form1 : Form
         WindowState = FormWindowState.Normal;
         Bounds = _windowModeBounds;
         WindowState = _windowModeState;
+        _bottomPanel.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        _bottomPanel.Dock = DockStyle.Bottom;
         _bottomPanel.Visible = true;
+        ShowHiddenCursor();
     }
 
     private async Task ShowVideoControlWindowAsync()
@@ -1551,6 +1745,183 @@ public partial class Form1 : Form
         }
 
         _toolTip.SetToolTip(_volumeBar, $"{_desiredVolume}%");
+    }
+
+    private void ChangeVolume(int delta)
+    {
+        if (delta == 0)
+        {
+            return;
+        }
+
+        _desiredVolume = Math.Clamp(_desiredVolume + delta, _volumeBar.Minimum, _volumeBar.Maximum);
+        ApplyDesiredVolumeToPlayer();
+        if (_isMuted)
+        {
+            ToggleMute();
+        }
+
+        SaveSettings();
+    }
+
+    private void ToggleMute()
+    {
+        _isMuted = !_isMuted;
+        if (_mediaPlayer is not null)
+        {
+            _mediaPlayer.Mute = _isMuted;
+        }
+
+        _volumeIcon.Text = _isMuted ? "" : ""; // Mute / Volume glyphs.
+        _volumeIcon.ForeColor = _isMuted ? AccentColor : IconColor;
+    }
+
+    private void StepFrame(bool forward)
+    {
+        var player = _mediaPlayer;
+        if (player is null || _currentFile is null || player.Length <= 0)
+        {
+            return;
+        }
+
+        if (player.IsPlaying)
+        {
+            player.Pause();
+            _playPauseButton.IsPlaying = false;
+        }
+
+        if (forward)
+        {
+            player.NextFrame();
+            return;
+        }
+
+        // shortcut: VLC has no previous-frame call; seeking back one frame lands near it, not always exactly on it.
+        var frameMs = player.Fps > 0 ? (long)Math.Round(1000 / player.Fps) : 40;
+        SeekToTime(Math.Max(player.Time - frameMs, 0));
+    }
+
+    private void RememberPosition()
+    {
+        var player = _mediaPlayer;
+        if (_currentFile is null || player is null || player.Length <= 0)
+        {
+            return;
+        }
+
+        _resumeStore.Record(_currentFile, _playbackEnded ? 0 : player.Time, player.Length);
+    }
+
+    private void AddSubtitle(string path)
+    {
+        if (_mediaPlayer is null || _currentFile is null)
+        {
+            return;
+        }
+
+        _mediaPlayer.AddSlave(MediaSlaveType.Subtitle, new Uri(path).AbsoluteUri, true);
+    }
+
+    private void OpenSubtitleFile()
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = _useKorean ? "자막 열기" : "Open subtitles",
+            Filter = (_useKorean ? "자막 파일" : "Subtitle files") + "|" + string.Join(";", SubtitleExtensions.Select(e => "*" + e)),
+            CheckFileExists = true
+        };
+
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            AddSubtitle(dialog.FileName);
+        }
+    }
+
+    private ToolStripMenuItem CreateMenuItem(string text, bool isChecked, Action onClick, bool enabled = true)
+    {
+        var item = new ToolStripMenuItem(text) { Checked = isChecked, Enabled = enabled };
+        item.Click += (_, _) => onClick();
+        return item;
+    }
+
+    private void RebuildDynamicMenus()
+    {
+        var player = _mediaPlayer;
+        var hasMedia = player is not null && _currentFile is not null;
+        string None() => _useKorean ? "(없음)" : "(none)";
+
+        _recentMenuItem.DropDownItems.Clear();
+        foreach (var file in _resumeStore.RecentFiles(20).Where(File.Exists).Take(10))
+        {
+            var time = _resumeStore.GetTime(file);
+            var label = time > 0 ? $"{Path.GetFileName(file)}  ({FormatTime(time)})" : Path.GetFileName(file);
+            var item = CreateMenuItem(label, string.Equals(file, _currentFile, StringComparison.OrdinalIgnoreCase), () => _ = PlayFilesAsync([file]));
+            item.ToolTipText = file;
+            _recentMenuItem.DropDownItems.Add(item);
+        }
+
+        if (_recentMenuItem.DropDownItems.Count == 0)
+        {
+            _recentMenuItem.DropDownItems.Add(CreateMenuItem(None(), false, () => { }, enabled: false));
+        }
+
+        _speedMenuItem.DropDownItems.Clear();
+        foreach (var rate in PlaybackRates)
+        {
+            _speedMenuItem.DropDownItems.Add(CreateMenuItem($"{rate:0.##}x", Math.Abs(rate - _rate) < 0.001f, () =>
+            {
+                _rate = rate;
+                _mediaPlayer?.SetRate(rate);
+            }));
+        }
+
+        _subtitleMenuItem.DropDownItems.Clear();
+        _subtitleMenuItem.DropDownItems.Add(CreateMenuItem(_useKorean ? "자막 파일 열기..." : "Open subtitle file...", false, OpenSubtitleFile, hasMedia));
+        AddTrackItems(_subtitleMenuItem, hasMedia ? player!.SpuDescription : [], hasMedia ? player!.Spu : -1, id => _mediaPlayer?.SetSpu(id));
+
+        _audioTrackMenuItem.DropDownItems.Clear();
+        AddTrackItems(_audioTrackMenuItem, hasMedia ? player!.AudioTrackDescription : [], hasMedia ? player!.AudioTrack : -1, id => _mediaPlayer?.SetAudioTrack(id));
+        if (_audioTrackMenuItem.DropDownItems.Count == 0)
+        {
+            _audioTrackMenuItem.DropDownItems.Add(CreateMenuItem(None(), false, () => { }, enabled: false));
+        }
+
+        _repeatMenuItem.DropDownItems.Clear();
+        _repeatMenuItem.DropDownItems.Add(CreateMenuItem(_useKorean ? "반복 안 함" : "Off", _repeatMode == RepeatMode.Off, () => _repeatMode = RepeatMode.Off));
+        _repeatMenuItem.DropDownItems.Add(CreateMenuItem(_useKorean ? "한 개 반복" : "Repeat one", _repeatMode == RepeatMode.One, () => _repeatMode = RepeatMode.One));
+        _repeatMenuItem.DropDownItems.Add(CreateMenuItem(_useKorean ? "전체 반복" : "Repeat all", _repeatMode == RepeatMode.All, () => _repeatMode = RepeatMode.All));
+        _repeatMenuItem.DropDownItems.Add(new ToolStripSeparator());
+        var now = player?.Time ?? 0;
+        _repeatMenuItem.DropDownItems.Add(CreateMenuItem(
+            (_useKorean ? "구간 시작(A) 지정" : "Set loop start (A)") + (_abStart >= 0 ? $"  {FormatTime(_abStart)}" : ""),
+            _abStart >= 0,
+            () => (_abStart, _abEnd) = (now, -1),
+            hasMedia));
+        _repeatMenuItem.DropDownItems.Add(CreateMenuItem(
+            (_useKorean ? "구간 끝(B) 지정" : "Set loop end (B)") + (_abEnd >= 0 ? $"  {FormatTime(_abEnd)}" : ""),
+            _abEnd >= 0,
+            () =>
+            {
+                _abEnd = now;
+                SeekToTime(_abStart);
+            },
+            hasMedia && _abStart >= 0 && now > _abStart));
+        _repeatMenuItem.DropDownItems.Add(CreateMenuItem(_useKorean ? "구간 반복 해제" : "Clear loop", false, () => _abStart = _abEnd = -1, _abStart >= 0));
+    }
+
+    private void AddTrackItems(ToolStripMenuItem menu, LibVLCSharp.Shared.Structures.TrackDescription[] tracks, int currentId, Action<int> select)
+    {
+        if (tracks.Length > 0 && menu.DropDownItems.Count > 0)
+        {
+            menu.DropDownItems.Add(new ToolStripSeparator());
+        }
+
+        foreach (var track in tracks)
+        {
+            var id = track.Id;
+            var name = id < 0 ? (_useKorean ? "끄기" : "Off") : track.Name;
+            menu.DropDownItems.Add(CreateMenuItem(name, id == currentId, () => select(id)));
+        }
     }
 
     private void ShowSkipSettingsWindow()
@@ -1806,7 +2177,6 @@ public partial class Form1 : Form
         _toolTip.SetToolTip(_playPauseButton, _useKorean ? "재생/일시정지 (Space)" : "Play/Pause (Space)");
         _toolTip.SetToolTip(_skipForwardButton, _useKorean ? "앞으로 (→)" : "Forward (→)");
         _toolTip.SetToolTip(_captureButton, _useKorean ? "화면 캡쳐" : "Capture frame");
-        _toolTip.SetToolTip(_fullScreenButton, _useKorean ? "전체화면" : "Fullscreen");
         _toolTip.SetToolTip(_volumeBar, $"{_desiredVolume}%");
         _emptyHint.SetText(
             _useKorean ? "동영상을 여기에 끌어다 놓으세요" : "Drop a video here",
@@ -1818,6 +2188,20 @@ public partial class Form1 : Form
         _playlistMenuItem.Text = _useKorean ? "재생 목록" : "Playlist";
         _captureSettingsMenuItem.Text = _useKorean ? "화면 캡쳐" : "Screen Capture";
         _languageMenuItem.Text = _useKorean ? "언어" : "Language";
+        _recentMenuItem.Text = _useKorean ? "최근 파일" : "Recent files";
+        _speedMenuItem.Text = _useKorean ? "재생 속도" : "Playback speed";
+        _subtitleMenuItem.Text = _useKorean ? "자막" : "Subtitles";
+        _audioTrackMenuItem.Text = _useKorean ? "음성 트랙" : "Audio track";
+        _repeatMenuItem.Text = _useKorean ? "반복" : "Repeat";
+        _videoTransformMenuItem.Text = _useKorean ? "회전/반전" : "Rotate/Flip";
+        _rotateNormalMenuItem.Text = _useKorean ? "원래대로" : "Normal";
+        _rotate90MenuItem.Text = _useKorean ? "90° 회전" : "Rotate 90°";
+        _rotate180MenuItem.Text = _useKorean ? "180° 회전" : "Rotate 180°";
+        _rotate270MenuItem.Text = _useKorean ? "270° 회전" : "Rotate 270°";
+        _flipHorizontalMenuItem.Text = _useKorean ? "좌우 반전" : "Flip horizontal";
+        _fullScreenMenuItem.ShortcutKeyDisplayString = "F";
+        _toolTip.SetToolTip(_fullScreenButton, _useKorean ? "전체화면 (F)" : "Fullscreen (F)");
+        _toolTip.SetToolTip(_volumeIcon, _useKorean ? "음소거 (M)" : "Mute (M)");
         UpdateVideoMenu();
     }
 
@@ -1950,6 +2334,13 @@ public partial class Form1 : Form
             ? time.ToString(@"h\:mm\:ss")
             : time.ToString(@"mm\:ss");
     }
+}
+
+internal enum RepeatMode
+{
+    Off,
+    One,
+    All
 }
 
 internal enum VideoTransformMode

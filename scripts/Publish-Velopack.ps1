@@ -7,7 +7,6 @@
     [string]$Configuration = "Release",
     [string]$MainExe = "Vidi.exe",
     [string]$Authors = "Manggdy",
-    [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/VideoPlayer/",
     [string]$PublishDir = "",
     [string]$OutputDir = "",
     [string]$ReleaseNotes = "",
@@ -164,4 +163,3 @@ if (Test-Path $setupFilePath) {
 Write-Host "Velopack release complete."
 Write-Host "Publish files : $publishDirPath"
 Write-Host "Release feed  : $outputDirPath"
-Write-Host "Update source : $DefaultUpdateSource"

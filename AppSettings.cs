@@ -7,14 +7,11 @@ public sealed class AppSettings
     public int Volume { get; set; } = 100;
     public ScreenCaptureOptions CaptureOptions { get; set; } = ScreenCaptureOptions.CreateDefault();
 
-    public static string FilePath
-    {
-        get
-        {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appData, "Vidi", "settings.ini");
-        }
-    }
+    // Settable so tests can use a temp folder; GetFolderPath ignores the APPDATA environment variable.
+    public static string DataDirectory { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Vidi");
+
+    public static string FilePath => Path.Combine(DataDirectory, "settings.ini");
 
     // Settings saved before the rename to Vidi; read once when the new file does not exist yet.
     private static string LegacyFilePath =>

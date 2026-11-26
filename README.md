@@ -26,7 +26,14 @@ Get the latest release from the [Releases](https://github.com/mrkim0118/Vidi/rel
 - **Skip forward/back**: Choose how many seconds each skip jumps.
 - **Frame capture**: Save the current frame at full resolution.
 - **Video effects**: Rotate 90°/180°/270°, flip horizontally, zoom in/out, and adjust brightness and color.
-- **Full screen**: Watch in full screen mode.
+- **Full screen**: Double-click the video or press `F`. The controls appear when you move the mouse and hide again, along with the cursor, after a moment.
+- **Resume playback**: Each file reopens where you left off. Finished files start from the beginning.
+- **Recent files**: Reopen any of the last 10 files from the right-click menu.
+- **Playback speed**: 0.5x to 2x.
+- **Subtitles**: Subtitle files with the same name load automatically. Drop a subtitle file on the video or open one from the menu, and switch or turn off subtitle tracks.
+- **Audio tracks**: Pick the audio track in videos that have several.
+- **Repeat**: Repeat one file, repeat the playlist, or loop a section between two points (A-B).
+- **Frame stepping**: Move one frame at a time with `,` and `.`.
 - **Korean / English**: Switch the interface language.
 - **Update check**: On launch, checks the latest GitHub release and asks whether to download and install the new version.
 
@@ -43,6 +50,10 @@ Get the latest release from the [Releases](https://github.com/mrkim0118/Vidi/rel
 |---|---|
 | `Space` | Play / pause |
 | `←` / `→` | Skip back / forward |
+| `↑` / `↓`, mouse wheel | Volume up / down |
+| `M` | Mute |
+| `F`, `Enter`, double-click | Toggle full screen |
+| `,` / `.` | Previous / next frame |
 | `+` / `-` | Zoom in / out |
 | `Ctrl+O` | Open file |
 | `Esc` | Exit full screen |
@@ -56,6 +67,7 @@ mp4, mkv, avi, mov, wmv, flv, webm, mpeg/mpg, m4v, 3gp, ts/mts/m2ts, ogv, vob, a
 | Data | Location |
 |---|---|
 | Settings | `%AppData%\Vidi\settings.ini` |
+| Recent files and resume positions | `%AppData%\Vidiesume.txt` |
 | Frame captures | `Pictures\Vidi Captures` (default, changeable) |
 
 ## Build from Source
@@ -90,6 +102,8 @@ Output goes to `artifacts\velopack\Releases`.
 | `Form1.cs`, `VideoControlForm.cs` | Main window and playback controls |
 | `PlaylistForm.cs` | Playlist window |
 | `AppSettings.cs` | Settings load and save |
+| `ResumeStore.cs` | Recent files and resume positions |
+| `DarkMenuRenderer.cs` | Dark right-click menu style |
 | `GitHubUpdater.cs` | GitHub release update check |
 | `FileAssociationService.cs` | Explorer file associations |
 | `Vidi.Tests/` | Tests |

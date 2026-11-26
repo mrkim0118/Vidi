@@ -2,7 +2,7 @@ using Vidi;
 
 var tempAppData = Path.Combine(Path.GetTempPath(), "VidiTests", Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(tempAppData);
-Environment.SetEnvironmentVariable("APPDATA", tempAppData);
+AppSettings.DataDirectory = tempAppData;
 
 try
 {
@@ -23,6 +23,7 @@ try
 
     await AssertPlaybackRequestsAreSerializedAsync();
     AssertPlaylistIndexMath();
+    AssertResumeStore(Path.Combine(tempAppData, "resume.txt"));
 }
 finally
 {
@@ -77,6 +78,24 @@ static void AssertPlaylistIndexMath()
     AssertEqual(1, PlaylistIndex.AfterRemove(1, 1, 2), "Removing current selects the item that took its place.");
     AssertEqual(0, PlaylistIndex.AfterRemove(1, 1, 1), "Removing the current last item selects the new last one.");
     AssertEqual(-1, PlaylistIndex.AfterRemove(0, 0, 0), "Removing the only item clears the selection.");
+}
+
+static void AssertResumeStore(string file)
+{
+    var store = new ResumeStore(file, capacity: 2);
+    store.Record(@"C:\a.mp4", 60_000, 600_000);
+    store.Record(@"C:\b.mp4", 5_000, 600_000);
+    store.Record(@"C:\c.mp4", 595_000, 600_000);
+    store.Save();
+
+    var loaded = new ResumeStore(file, capacity: 2);
+    AssertEqual(@"C:\c.mp4,C:\b.mp4", string.Join(',', loaded.RecentFiles(10)), "Most recent first, trimmed to capacity.");
+    AssertEqual(0L, loaded.GetTime(@"C:\b.mp4"), "Positions near the start resume from the beginning.");
+    AssertEqual(0L, loaded.GetTime(@"C:\c.mp4"), "Positions near the end resume from the beginning.");
+
+    loaded.Record(@"C:\B.MP4", 120_000, 600_000);
+    AssertEqual(120_000L, loaded.GetTime(@"c:\b.mp4"), "Paths match case-insensitively and keep the last position.");
+    AssertEqual(@"C:\B.MP4,C:\c.mp4", string.Join(',', loaded.RecentFiles(10)), "Re-recording moves a file to the front without duplicates.");
 }
 
 static void AssertEqual<T>(T expected, T actual, string message)
