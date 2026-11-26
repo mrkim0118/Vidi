@@ -1,17 +1,25 @@
-using Velopack;
-
 namespace Vidi;
 
 static class Program
 {
+    // Run by the installer (installer\Vidi.iss) after install and before uninstall.
+    private const string RegisterArgument = "--register";
+    private const string UnregisterArgument = "--unregister";
+
     [STAThread]
     static void Main(string[] args)
     {
-        VelopackApp.Build()
-            .OnAfterInstallFastCallback(_ => RunAfterInstallOrUpdate())
-            .OnAfterUpdateFastCallback(_ => RunAfterInstallOrUpdate())
-            .OnBeforeUninstallFastCallback(_ => RunBeforeUninstall())
-            .Run();
+        if (args is [RegisterArgument])
+        {
+            RunAfterInstallOrUpdate();
+            return;
+        }
+
+        if (args is [UnregisterArgument])
+        {
+            RunBeforeUninstall();
+            return;
+        }
 
         if (VlcWarmupService.IsWarmupRequest(args))
         {

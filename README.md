@@ -16,8 +16,7 @@ Built on LibVLC, so it plays almost any video format without installing extra co
 
 Get the latest release from the [Releases](https://github.com/mrkim0118/Vidi/releases/latest) page:
 
-- `Vidi-Setup-x.y.z.exe`: installer
-- `Vidi-win-Portable.zip`: no installation needed; unzip and run `Vidi.exe`
+- `Vidi-Setup-x.y.z.exe`: installer (installs to `C:\Program Files\Vidi` and adds Vidi to Explorer's "Open with" list)
 
 ## Features
 
@@ -89,11 +88,12 @@ dotnet run --project Vidi.Tests
 ### Release
 
 ```powershell
-$env:DOTNET_ROLL_FORWARD = 'Major'  # the vpk tool needs .NET 9
-powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.0.0
+powershell -ExecutionPolicy Bypass -File scripts\Build-Installer.ps1
 ```
 
-Output goes to `artifacts\velopack\Releases`.
+The script publishes the app (self-contained, without PDB files) to `artifacts\publish`, signs `Vidi.exe` with the `CN=Manggdy` certificate, and builds `artifacts\installer\Vidi-Setup-<version>.exe` with [Inno Setup 6](https://jrsoftware.org/isinfo.php). The version comes from `<Version>` in `Vidi.csproj`. Pass `-NoSign` to build without a certificate.
+
+After installing, setup runs `Vidi.exe --register` as the signed-in user to add the "Open with" entry and the startup VLC warm-up; uninstall runs `Vidi.exe --unregister`.
 
 ## Project Layout
 
@@ -108,9 +108,10 @@ Output goes to `artifacts\velopack\Releases`.
 | `FileAssociationService.cs` | Explorer file associations |
 | `Vidi.Tests/` | Tests |
 | `icons/` | App icons |
-| `scripts/Publish-Velopack.ps1` | Release packaging |
+| `installer/Vidi.iss` | Inno Setup installer script |
+| `scripts/Build-Installer.ps1` | Release build and installer packaging |
 
 ## Libraries
 
 - [LibVLCSharp](https://github.com/videolan/libvlcsharp) / [LibVLC](https://www.videolan.org/vlc/libvlc.html)
-- [Velopack](https://velopack.io/)
+- [Inno Setup](https://jrsoftware.org/isinfo.php): installer

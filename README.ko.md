@@ -16,8 +16,7 @@ LibVLC 기반이라 거의 모든 동영상 형식을 별도 코덱 설치 없�
 
 [Releases](https://github.com/mrkim0118/Vidi/releases/latest) 페이지에서 최신 버전을 받습니다.
 
-- `Vidi-Setup-x.y.z.exe`: 설치 파일
-- `Vidi-win-Portable.zip`: 설치 없이 사용. 압축을 풀고 `Vidi.exe`를 실행합니다.
+- `Vidi-Setup-x.y.z.exe`: 설치 파일 (`C:\Program Files\Vidi`에 설치하고 탐색기 "연결 프로그램" 목록에 Vidi를 추가합니다)
 
 ## 주요 기능
 
@@ -89,11 +88,12 @@ dotnet run --project Vidi.Tests
 ### 배포
 
 ```powershell
-$env:DOTNET_ROLL_FORWARD = 'Major'  # vpk 도구가 .NET 9를 요구합니다
-powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1.0.0
+powershell -ExecutionPolicy Bypass -File scripts\Build-Installer.ps1
 ```
 
-결과물은 `artifacts\velopack\Releases`에 생깁니다.
+이 스크립트는 앱을 `artifacts\publish`에 게시하고(.NET 런타임 포함, PDB 제외) `Vidi.exe`를 `CN=Manggdy` 인증서로 서명한 뒤, [Inno Setup 6](https://jrsoftware.org/isinfo.php)로 `artifacts\installer\Vidi-Setup-<버전>.exe`를 만듭니다. 버전은 `Vidi.csproj`의 `<Version>`을 씁니다. 인증서 없이 빌드하려면 `-NoSign`을 붙입니다.
+
+설치가 끝나면 설치 프로그램이 로그인한 사용자 권한으로 `Vidi.exe --register`를 실행해 "연결 프로그램" 항목과 시작 시 VLC 미리 준비를 등록하고, 제거할 때는 `Vidi.exe --unregister`를 실행합니다.
 
 ## 프로젝트 구조
 
@@ -108,9 +108,10 @@ powershell -ExecutionPolicy Bypass -File scripts\Publish-Velopack.ps1 -Version 1
 | `FileAssociationService.cs` | 탐색기 파일 연결 |
 | `Vidi.Tests/` | 테스트 |
 | `icons/` | 앱 아이콘 |
-| `scripts/Publish-Velopack.ps1` | 배포 패키지 생성 |
+| `installer/Vidi.iss` | Inno Setup 설치 스크립트 |
+| `scripts/Build-Installer.ps1` | 릴리스 빌드와 설치 파일 생성 |
 
 ## 사용한 라이브러리
 
 - [LibVLCSharp](https://github.com/videolan/libvlcsharp) / [LibVLC](https://www.videolan.org/vlc/libvlc.html)
-- [Velopack](https://velopack.io/)
+- [Inno Setup](https://jrsoftware.org/isinfo.php): 설치 프로그램
